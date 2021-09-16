@@ -1,11 +1,6 @@
 import unittest
 import pathlib
-import sys
-
-# TODO переделать
-sys.path.append(str(pathlib.Path(__file__).parent.parent.parent) + '/main/python/')
-
-from flac import AudioFile
+from src.main.flac import AudioFile
 
 class TestFlacParser(unittest.TestCase):
 

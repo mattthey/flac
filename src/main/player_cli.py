@@ -1,9 +1,12 @@
-from argparse import ArgumentParser
-import sys
 import re
-from PyQt5.QtCore import QUrl, Qt, QCoreApplication
+import sys
+from argparse import ArgumentParser
+
+from PyQt5.QtCore import QUrl, QCoreApplication
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
+
 from flac import AudioFile
+
 volume_regex = re.compile(r'v (\d+)')
 position_regex = re.compile(r'p ([-+])(\d+)')
 

@@ -1,13 +1,15 @@
 #!/usr/bin/env python
 
 import sys
-from PyQt5.QtCore import QDir, Qt, QUrl, QByteArray
+
+from PyQt5.QtCore import QDir, Qt, QUrl
+from PyQt5.QtGui import QIcon
 from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer
 from PyQt5.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QLabel,
-                             QPushButton, QSizePolicy, QSlider, QStyle,
-                             QVBoxLayout, QWidget)
+                             QSizePolicy, QSlider, QStyle,
+                             QVBoxLayout)
 from PyQt5.QtWidgets import QMainWindow, QWidget, QPushButton, QAction
-from PyQt5.QtGui import QIcon, QPixmap, QGuiApplication
+
 from flac import AudioFile
 
 
@@ -46,36 +48,36 @@ class AudioWindow(QMainWindow):
         openAction.triggered.connect(self.openFile)
 
         # Create exit action
-        exitAction = QAction(QIcon('exit.png'), '&Exit', self)
-        exitAction.setShortcut('Ctrl+Q')
-        exitAction.setStatusTip('Exit application')
-        exitAction.triggered.connect(self.exitCall)
+        exit_action = QAction(QIcon('exit.png'), '&Exit', self)
+        exit_action.setShortcut('Ctrl+Q')
+        exit_action.setStatusTip('Exit application')
+        exit_action.triggered.connect(self.exitCall)
 
-        self.infoAction = QAction('&File info', self)
-        self.infoAction.setStatusTip('Show file info')
-        self.infoAction.triggered.connect(self.showInfo)
-        self.infoAction.setEnabled(False)
+        self.info_action = QAction('&File info', self)
+        self.info_action.setStatusTip('Show file info')
+        self.info_action.triggered.connect(self.showInfo)
+        self.info_action.setEnabled(False)
 
         # Create menu bar and add action
-        menuBar = self.menuBar()
-        fileMenu = menuBar.addMenu('&File')
-        fileMenu.addAction(self.infoAction)
-        fileMenu.addAction(openAction)
-        fileMenu.addAction(exitAction)
+        menu_bar = self.menuBar()
+        file_menu = menu_bar.addMenu('&File')
+        file_menu.addAction(self.info_action)
+        file_menu.addAction(openAction)
+        file_menu.addAction(exit_action)
 
         # Create a widget for window contents
         wid = QWidget(self)
         self.setCentralWidget(wid)
 
         # Create layouts to place inside widget
-        controlLayout = QHBoxLayout()
-        controlLayout.setContentsMargins(0, 0, 0, 0)
-        controlLayout.addWidget(self.playButton)
-        controlLayout.addWidget(self.positionSlider)
-        controlLayout.addWidget(self.volumeSlider)
+        control_layout = QHBoxLayout()
+        control_layout.setContentsMargins(0, 0, 0, 0)
+        control_layout.addWidget(self.playButton)
+        control_layout.addWidget(self.positionSlider)
+        control_layout.addWidget(self.volumeSlider)
 
         layout = QVBoxLayout()
-        layout.addLayout(controlLayout)
+        layout.addLayout(control_layout)
         layout.addWidget(self.errorLabel)
 
         # Set widget to contain window contents
@@ -95,13 +97,13 @@ class AudioWindow(QMainWindow):
                     self.file_info = AudioFile(fileName)
 
             except ValueError:
-                self.infoAction.setEnabled(False)
+                self.info_action.setEnabled(False)
                 self.errorLabel.setText('Error: file is not flac')
                 self.mediaPlayer.setMedia(QMediaContent())
                 self.playButton.setEnabled(False)
                 self.volumeSlider.setRange(0, 0)
             else:
-                self.infoAction.setEnabled(True)
+                self.info_action.setEnabled(True)
                 self.volumeSlider.setRange(0, 100)
                 self.volumeSlider.setValue(100)
                 self.mediaPlayer.setMedia(
