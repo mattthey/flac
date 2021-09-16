@@ -1,6 +1,13 @@
 import re
+import pathlib
+import sys
+
+# TODO переделать
+sys.path.append(str(pathlib.Path(__file__).parent))
+
 import constants
 from CRC8 import CRC8
+
 crc8 = CRC8()
 ext_regex = re.compile('.+?/(.+)')
 

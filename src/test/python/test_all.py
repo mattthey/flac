@@ -1,18 +1,24 @@
 import unittest
-# from flac import AudioFile
-from src.main.python.flac import AudioFile
+import pathlib
+import sys
+
+# TODO переделать
+sys.path.append(str(pathlib.Path(__file__).parent.parent.parent) + '/main/python/')
+
+from flac import AudioFile
 
 class TestFlacParser(unittest.TestCase):
 
     def setUp(self):
-        self.filename = '../resources/Sample.flac'
-        self.filename_with_cuesheet = 'cuesheet_track.flac'
+        self.resources_path_str = str(pathlib.Path(__file__).parent.parent) + '/resources/'
+        self.filename = self.resources_path_str + 'Sample.flac'
+        # self.filename_with_cuesheet = 'cuesheet_track.flac'
         self.number_of_frames = 3324
         self.audio_file = AudioFile(self.filename)
 
     def test_assert_file_is_flac(self):
         with self.assertRaises(ValueError):
-            AudioFile('not flac.txt')
+            AudioFile(self.resources_path_str + 'not flac.txt')
 
     def test_assert_instantiates(self):
         self.assertIsNotNone(self.audio_file)
@@ -30,6 +36,7 @@ class TestFlacParser(unittest.TestCase):
     def test_seektable(self):
         self.assertEqual(len(self.audio_file.seektable), 100)
 
+    @unittest.skip("find or create flac with cuesheet")
     def test_cuesheet(self):
         file = AudioFile(self.filename_with_cuesheet)
         self.assertGreater(len(file.cuesheet), 0)
