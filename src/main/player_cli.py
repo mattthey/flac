@@ -13,6 +13,7 @@ position_regex = re.compile(r'p ([-+])(\d+)')
 
 class Player:
     def __init__(self):
+        # https://docs.python.org/3/library/argparse.html
         self.parser = \
             ArgumentParser(description='flac player',
                            usage="""python player_cli.py -f [filename]
@@ -31,12 +32,14 @@ class Player:
                                  action='store_true', required=False)
         self.args = self.parser.parse_args()
         self.file = AudioFile(self.args.filename)
+
+        # нужно ли сохранить картинку
         if self.args.picture:
             self.file.save_picture()
         self.player = QMediaPlayer()
         self.position = 0
-        self.player.\
-            setMedia(QMediaContent(QUrl.fromLocalFile(self.file.filename)))
+        media_content = QMediaContent(QUrl.fromLocalFile(self.file.filename))
+        self.player.setMedia(media_content)
         print(self.file.make_text())
         if self.args.frames:
             self.file.parse_frames()
@@ -48,25 +51,35 @@ class Player:
         self.play()
 
     def play(self):
+        """
+        pa - pause
+        pl - play
+        stop - stop
+        p +-${число} - перейти на нужную позицию
+        v +-${число} - изменить уровень громкости
+        """
         while True:
             line = input()
-            volume = volume_regex.match(line)
-            position = position_regex.match(line)
-            self.position = self.player.position()
             if line == 'pa':
                 self.player.pause()
             if line == 'pl':
                 self.player.play()
             if line == 'stop':
                 self.player.stop()
+            # изменить уровень громкости v от 0 до 100
+            volume = volume_regex.match(line)
             if volume:
                 self.player.setVolume(int(volume.group(1)))
+            # изменить позицию в секундах
+            # TODO не работает чет
+            position = position_regex.match(line)
             if position:
                 if position.group(1) == '+':
                     pos = int(position.group(2))
                 else:
                     pos = -1*int(position.group(2))
-                self.position = self.position + pos*100
+                self.position = self.player.position()
+                self.position = self.position + pos * 100
                 self.player.setPosition(self.position)
 
     def mediaStateChanged(self):

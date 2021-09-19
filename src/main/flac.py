@@ -1,12 +1,54 @@
 import re
 import constants
 from CRC8 import CRC8
+from typing import Final
 
-crc8 = CRC8()
-ext_regex = re.compile('.+?/(.+)')
+crc8: Final = CRC8()
+ext_regex: Final = re.compile('.+?/(.+)')
+tag_regex: Final = re.compile('(.+?)=(.+)')
+
+# streaminfo
+STREAMINFO = 'streaminfo'
+BLOCK_MINSIZE: Final = 'block_minsize'
+BLOCK_MAXSIZE: Final = 'block_maxsize'
+VORBIS_COMMENT: Final = 'vorbis comment'
+PICTURE: Final = 'picture'
+CUESHEET: Final = 'cuesheet'
+SEEKTABLE: Final = 'seektable'
+
+RATE = 'rate'
+FRAME_MINSIZE = 'frame_minsize'
+FRAME_MAXSIZE = 'frame_maxsize'
+CHANNELS = 'channels'
+BITS_PER_SAMPLE = 'bits per sample'
+SAMPLES_IN_FLOW = 'samples in flow'
+
+# cuesheet
+MEDIA_CATALOG_NUMBER = 'media catalog number'
+LEAD_IN_SAMPLES = 'lead in samples'
+CORRESPONDS_TO_CD = 'corresponds to cd'
+TRACKS = 'tracks'
+OFFSET = 'offset'
+TRACK_NUMBER = 'track number'
+ISRC = 'isrc'
+IS_AUDIO = 'is audio'
+PRE_EMPHASIS = 'pre-emphasis'
+TRACK_INDEX = 'track index'
+INDEX_POINT_NUMBER = 'index point number'
+
+# frames
+BLOCK_SIZE = 'block size'
+SAMPLE_RATE = 'sample rate'
+SAMPLE_SIZE = 'sample size'
+SAMPLE_NUMBER = 'sample number'
 
 
 class AudioFile:
+    """
+    Разбор метаданных файла flac
+    https://xiph.org/flac/format.html
+    https://www.the-roberts-family.net/metadata/flac.html
+    """
     def __init__(self, filename):
         self.filename = filename
         self.file_is_flac()
@@ -20,15 +62,19 @@ class AudioFile:
         self.picture = []
         self.cuesheet = {}
         self.seektable = []
-        if 'vorbis comment' in self.positions:
+        if VORBIS_COMMENT in self.positions:
             self.tags = self.parse_vorbis_comment()
-        if 'picture' in self.positions:
-            for i in range(0, len(self.positions['picture'])):
+        if PICTURE in self.positions:
+            for i in range(0, len(self.positions[PICTURE])):
                 self.picture.append(self.parse_picture(i))
-        if 'cuesheet' in self.positions:
+        if CUESHEET in self.positions:
             self.cuesheet = self.parse_cuesheet()
-        if 'seektable' in self.positions:
+        if SEEKTABLE in self.positions:
             self.seektable = self.parse_seektable()
+
+    """
+    Проверка на то является ли файл формата flac
+    """
 
     def file_is_flac(self):
         with open(self.filename, 'rb') as f:
@@ -38,28 +84,37 @@ class AudioFile:
 
     @staticmethod
     def parse_metadata_block_header(header):
-        flag_and_type = bin(header[0])[2:].zfill(8)
+        flag_and_type = bin(header[0])[2:].zfill(8)  # заполняем строку 8 нулями
         is_last = int(flag_and_type[0])
         type_of_block = int(flag_and_type[1:], 2)
         size = int.from_bytes(header[1:], byteorder='big')
         return is_last, type_of_block, size
 
     def parse_vorbis_comment(self):
+        """
+        Также известное как теги FLAC, содержимое пакета комментариев vorbis, как указано здесь
+        (без бита кадрирования). Обратите внимание, что спецификация комментариев vorbis
+        допускает порядка 2^64 байтов данных, тогда как блок метаданных FLAC ограничен 2^24 байтами.
+        Учитывая заявленную цель комментариев vorbis, т.e. Удобочитаемую текстовую информацию,
+        этот предел вряд ли будет ограничивающим. Также обратите внимание, что длины 32-битных полей
+        кодируются с прямым порядком байтов в соответствии со спецификацией vorbis, в отличие от обычного
+        кодирования с прямым порядком байтов целых чисел фиксированной длины в остальной части FLAC.
+        :return:
+        """
         tags = {}
         with open(self.filename, 'rb') as f:
             file = f.read()
-            begin, end = self.positions['vorbis comment']
+            begin, end = self.positions[VORBIS_COMMENT]
             block = file[begin:end]
         vendor_length = int.from_bytes(block[0:4], byteorder='little')
-        vendor = block[4:4+vendor_length].decode()
+        vendor = block[4:4 + vendor_length].decode()
         tags['vendor'] = vendor
-        tags_count = int.from_bytes(block[4+vendor_length:8+vendor_length],
+        tags_count = int.from_bytes(block[4 + vendor_length:8 + vendor_length],
                                     byteorder='little')
         pos = 8 + vendor_length
-        tag_regex = re.compile('(.+?)=(.+)')
         for i in range(0, tags_count):
-            length = int.from_bytes(block[pos:pos+4], byteorder='little')
-            tag = tag_regex.match(block[pos+4:pos+4+length].decode())
+            length = int.from_bytes(block[pos:pos + 4], byteorder='little')
+            tag = tag_regex.match(block[pos + 4:pos + 4 + length].decode())
             if tag:
                 tag_name = tag.group(1)
                 tag_value = tag.group(2)
@@ -73,42 +128,34 @@ class AudioFile:
     def parse_streaminfo(self):
         with open(self.filename, 'rb') as f:
             file = f.read()
-            begin, end = self.positions['streaminfo']
+            begin, end = self.positions[STREAMINFO]
             block = file[begin:end]
-        self.streaminfo['block_minsize'] = \
-            int.from_bytes(block[0:2], byteorder='big')
-        self.streaminfo['block_maxsize'] = \
-            int.from_bytes(block[2:4], byteorder='big')
-        self.streaminfo['frame_minsize'] = \
-            int.from_bytes(block[4:7], byteorder='big')
-        self.streaminfo['frame_maxsize'] = \
-            int.from_bytes(block[7:10], byteorder='big')
+        self.streaminfo[BLOCK_MINSIZE] = int.from_bytes(block[0:2], byteorder='big')
+        self.streaminfo[BLOCK_MAXSIZE] = int.from_bytes(block[2:4], byteorder='big')
+        self.streaminfo[FRAME_MINSIZE] = int.from_bytes(block[4:7], byteorder='big')
+        self.streaminfo[FRAME_MAXSIZE] = int.from_bytes(block[7:10], byteorder='big')
         data = bin(int.from_bytes(block[10:18], byteorder='big'))[2:].zfill(64)
-        self.streaminfo['rate'] = int(data[0:20], 2)
-        self.streaminfo['channels'] = int(data[20:23], 2) + 1
-        self.streaminfo['bits per sample'] = int(data[23:28], 2) + 1
-        self.streaminfo['samples in flow'] = int(data[28:64], 2)
+        self.streaminfo[RATE] = int(data[0:20], 2)
+        self.streaminfo[CHANNELS] = int(data[20:23], 2) + 1
+        self.streaminfo[BITS_PER_SAMPLE] = int(data[23:28], 2) + 1
+        self.streaminfo[SAMPLES_IN_FLOW] = int(data[28:64], 2)
 
     def parse_picture(self, i):
         with open(self.filename, 'rb') as f:
             file = f.read()
-            begin, end = self.positions['picture'][i]
+            begin, end = self.positions[PICTURE][i]
             block = file[begin:end]
 
         ext_len = int.from_bytes(block[4:8], byteorder='big')
-        descr_len = int.from_bytes(block[8 + ext_len:12 + ext_len],
-                                   byteorder='big')
-        pic_len = int.from_bytes(block[28 + ext_len + descr_len:
-                                       32 + ext_len + descr_len],
-                                 byteorder='big')
+        descr_len = int.from_bytes(block[8 + ext_len:12 + ext_len], byteorder='big')
+        pic_len = int.from_bytes(block[28 + ext_len + descr_len: 32 + ext_len + descr_len], byteorder='big')
 
         pic_type = self.__get_pic_type(block)
         mime_type = self.__get_mime_type(block, ext_len)
         ext = ext_regex.match(mime_type).group(1)
         descr = self.__get_description(block, ext_len, descr_len)
         width, height = self.__get_sizes(block, ext_len, descr_len)
-        color_depth, number_of_colors = \
-            self.__get_colors(block, ext_len, descr_len)
+        color_depth, number_of_colors = self.__get_colors(block, ext_len, descr_len)
         pic = self.__get_picture(block, ext_len, descr_len, pic_len)
         return {'picture type': pic_type,
                 'mime type': mime_type,
@@ -127,7 +174,7 @@ class AudioFile:
 
     @staticmethod
     def __get_mime_type(block, ext_len):
-        return block[8:8+ext_len].decode()
+        return block[8:8 + ext_len].decode()
 
     @staticmethod
     def __get_description(block, ext_len, descr_len):
@@ -155,81 +202,103 @@ class AudioFile:
 
     @staticmethod
     def __get_picture(block, ext_len, descr_len, pic_len):
-        return block[32+ext_len+descr_len:32+ext_len+descr_len+pic_len]
+        return block[32 + ext_len + descr_len:32 + ext_len + descr_len + pic_len]
 
     def parse_metadata(self):
+        """
+        Парсинг метаданных, растановка индексов
+        """
         with open(self.filename, 'rb') as f:
             file = f.read()
-            pos = 4
+            pos = 4  # первые 4 байта занимает 'fLaC'
             is_last = False
             while not is_last:
-                is_last, type_of_block, size = \
-                    self.parse_metadata_block_header(file[pos:pos+4])
-                positions = (pos+4, pos+4+size)
+                is_last, type_of_block, size = self.parse_metadata_block_header(file[pos:pos + 4])
+                positions = (pos + 4, pos + 4 + size)
                 if type_of_block == 0:
-                    self.positions['streaminfo'] = positions
-                if type_of_block == 4:
-                    self.positions['vorbis comment'] = positions
-                if type_of_block == 6:
-                    if 'picture' not in self.positions:
-                        self.positions['picture'] = [positions]
+                    """
+                    Этот блок содержит информацию обо всем потоке, такую как частота дискретизации, 
+                    количество каналов, общее количество отсчетов и т.д. Он должен присутствовать в качестве 
+                    первого блока метаданных в потоке. 
+                    Могут последовать и другие блоки метаданных, а те, которые декодер не понимает, он пропустит.
+                    """
+                    self.positions[STREAMINFO] = positions
+                elif type_of_block == 4:
+                    """
+                    Этот блок предназначен для хранения списка понятных человеку пар имя/значение. 
+                    Значения кодируются с использованием UTF-8. Это реализация спецификации комментария 
+                    Vorbis (без бита кадрирования). Это единственный официально поддерживаемый механизм тегирования 
+                    во FLAC. В потоке может быть только один блок VORBIS_COMMENT. В некоторой внешней документации 
+                    комментарии Vorbis называются тегами FLAC, чтобы избежать путаницы.
+                    """
+                    self.positions[VORBIS_COMMENT] = positions
+                elif type_of_block == 6:
+                    """
+                    Этот блок предназначен для хранения изображений, связанных с файлом, чаще всего обложек 
+                    с компакт-дисков. В файле может быть более одного блока PICTURE. Формат изображения аналогичен 
+                    кадру APIC в ID3v2. Блок PICTURE имеет тип, MIME-тип и описание UTF-8, например ID3v2, 
+                    и поддерживает внешние ссылки через URL (хотя это не рекомендуется). Различия заключаются 
+                    в том, что для поля описания нет ограничения уникальности, а тип MIME является обязательным. 
+                    Блок FLAC PICTURE также включает в себя разрешение, глубину цвета и размер палитры, 
+                    чтобы клиент мог искать подходящее изображение без необходимости сканировать их все.
+                    """
+                    if PICTURE not in self.positions:
+                        self.positions[PICTURE] = [positions]
                     else:
-                        self.positions['picture'].append(positions)
-                if type_of_block == 5:
-                    self.positions['cuesheet'] = positions
+                        self.positions[PICTURE].append(positions)
+                elif type_of_block == 5:
+                    self.positions[CUESHEET] = positions
+                elif type_of_block == 3:
+                    self.positions[SEEKTABLE] = positions
                 pos += size + 4
-                if type_of_block == 3:
-                    self.positions['seektable'] = positions
         return pos
 
     def parse_cuesheet(self):
         with open(self.filename, 'rb') as f:
             file = f.read()
-            begin, end = self.positions['cuesheet']
+            begin, end = self.positions[CUESHEET]
             block = file[begin:end]
         cuesheet = {}
-        cuesheet['media catalog number'] = block[0:128].decode()
-        cuesheet['lead in samples'] = int.from_bytes(block[128:136],
+        cuesheet[MEDIA_CATALOG_NUMBER] = block[0:128].decode()
+        cuesheet[LEAD_IN_SAMPLES] = int.from_bytes(block[128:136],
                                                      byteorder='big')
-        cuesheet['corresponds to cd'] = int(bin(block[136])[2])
+        cuesheet[CORRESPONDS_TO_CD] = int(bin(block[136])[2])
         number_of_tracks = block[395]
-        cuesheet['tracks'] = []
+        cuesheet[TRACKS] = []
         pos = 396
         for i in range(0, number_of_tracks):
-            cuesheet['tracks'].append({})
-            cuesheet['tracks'][i]['offset'] = int.from_bytes(block[pos:pos+8],
+            cuesheet[TRACKS].append({})
+            cuesheet[TRACKS][i][OFFSET] = int.from_bytes(block[pos:pos + 8],
                                                              byteorder='big')
-            cuesheet['tracks'][i]['track number'] = block[pos+8]
-            cuesheet['tracks'][i]['isrc'] = block[pos+9:pos+21].decode()
-            cuesheet['tracks'][i]['is audio'] = int(bin(block[pos+21])
+            cuesheet[TRACKS][i][TRACK_NUMBER] = block[pos + 8]
+            cuesheet[TRACKS][i][ISRC] = block[pos + 9:pos + 21].decode()
+            cuesheet[TRACKS][i][IS_AUDIO] = int(bin(block[pos + 21])
                                                     .zfill(8)[2])
-            cuesheet['tracks'][i]['pre-emphasis'] = int(bin(block[pos+21])
+            cuesheet[TRACKS][i][PRE_EMPHASIS] = int(bin(block[pos + 21])
                                                         .zfill(8)[3])
-            number_of_track_points = block[pos+35]
+            number_of_track_points = block[pos + 35]
             pos += 36
-            cuesheet['tracks'][i]['track index'] = []
+            cuesheet[TRACKS][i][TRACK_INDEX] = []
             for j in range(0, number_of_track_points):
-                cuesheet['tracks'][i]['track index'].append({})
-                cuesheet['tracks'][i]['track index'][j]['offset'] = \
-                    int.from_bytes(block[pos:pos+8], byteorder='big')
-                cuesheet['tracks'][i]['track index'][j]['index point number'] \
-                    = block[pos+8]
+                cuesheet[TRACKS][i][TRACK_INDEX].append({})
+                cuesheet[TRACKS][i][TRACK_INDEX][j][OFFSET] = int.from_bytes(block[pos:pos + 8], byteorder='big')
+                cuesheet[TRACKS][i][TRACK_INDEX][j][INDEX_POINT_NUMBER] = block[pos + 8]
                 pos += 12
         return cuesheet
 
     def parse_seektable(self):
         with open(self.filename, 'rb') as f:
             file = f.read()
-            begin, end = self.positions['seektable']
+            begin, end = self.positions[SEEKTABLE]
             block = file[begin:end]
         pos = 0
         seektable = []
         counter = 0
         while pos + 17 < len(block):
             seektable.append({})
-            seektable[counter]['first sample'] = block[pos:pos+8]
-            seektable[counter]['offset'] = block[pos+8:pos+16]
-            seektable[counter]['number of samples'] = block[pos+16:pos+18]
+            seektable[counter]['first sample'] = block[pos:pos + 8]
+            seektable[counter][OFFSET] = block[pos + 8:pos + 16]
+            seektable[counter]['number of samples'] = block[pos + 16:pos + 18]
             pos += 18
             counter += 1
         return seektable
@@ -245,29 +314,27 @@ class AudioFile:
             pos = self.first_frame
             counter = -1
             while pos < len(file):
-                if not (b'\xff\xfb' >= file[pos:pos+2] >= b'\xff\xf8'):
+                if not (b'\xff\xfb' >= file[pos:pos + 2] >= b'\xff\xf8'):
                     pos += 1
                 else:
                     counter += 1
                     try:
-                        block_size, sample_rate, channels, sample_size, \
-                         offset, \
-                         frame_sample_number = \
-                         self.parse_one_frame(file, pos, counter)
+                        # TODO исправить говнокод по обработке фрейма
+                        block_size, sample_rate, channels, sample_size, offset, frame_sample_number \
+                            = self.parse_one_frame(file, pos, counter)
                     except ValueError:
                         counter -= 1
                         pos += 1
                         continue
                     self.frames.append({})
-                    self.frames[counter]['block size'] = block_size
-                    self.frames[counter]['sample rate'] = sample_rate
-                    self.frames[counter]['channels'] = channels
-                    self.frames[counter]['sample size'] = sample_size
-                    self.frames[counter]['offset'] = pos
+                    self.frames[counter][BLOCK_SIZE] = block_size
+                    self.frames[counter][SAMPLE_RATE] = sample_rate
+                    self.frames[counter][CHANNELS] = channels
+                    self.frames[counter][SAMPLE_SIZE] = sample_size
+                    self.frames[counter][OFFSET] = pos
                     pos = offset
                     if self.blocking_strategy:
-                        self.frames[counter]['sample number'] = \
-                            frame_sample_number
+                        self.frames[counter][SAMPLE_NUMBER] = frame_sample_number
 
     @staticmethod
     def __decode_utf8(file, pos):
@@ -289,7 +356,7 @@ class AudioFile:
     def __get_block_size(self, file, pos, length, block_size):
         block_size_len = 0
         if block_size == 0:
-            block_size = self.streaminfo['block_maxsize']
+            block_size = self.streaminfo[BLOCK_MAXSIZE]
         if block_size == 1:
             block_size = 192
         if 2 <= block_size <= 5:
@@ -312,20 +379,20 @@ class AudioFile:
         if sample_rate == 15:
             raise ValueError()
         if sample_rate == 0:
-            sample_rate = self.streaminfo['rate']
+            sample_rate = self.streaminfo[RATE]
         if 1 <= sample_rate <= 11:
             sample_rate = constants.sample_rate[sample_rate]
         if sample_rate == 12:
             sample_rate = file[pos + 4 + length + block_size_len]
             sample_rate_len = 1
         if sample_rate == 13:
-            sample_rate = int.from_bytes(file[pos+4+length+block_size_len:
-                                              pos+6+length+block_size_len],
+            sample_rate = int.from_bytes(file[pos + 4 + length + block_size_len:
+                                              pos + 6 + length + block_size_len],
                                          byteorder='big') / 1000
             sample_rate_len = 2
         if sample_rate == 14:
-            sample_rate = int.from_bytes(file[pos+4+length+block_size_len:
-                                              pos+6+length+block_size_len],
+            sample_rate = int.from_bytes(file[pos + 4 + length + block_size_len:
+                                              pos + 6 + length + block_size_len],
                                          byteorder='big') / 100
             sample_rate_len = 2
         return sample_rate, sample_rate_len
@@ -361,7 +428,7 @@ class AudioFile:
         if sample_size == 3 or sample_size == 7:
             raise ValueError()
         if sample_size == 0:
-            sample_size = self.streaminfo['bits per sample']
+            sample_size = self.streaminfo[BITS_PER_SAMPLE]
         else:
             sample_size = constants.sample_size[sample_size]
 
@@ -373,24 +440,27 @@ class AudioFile:
         if file[end_pos] != crc8.get_crc(file[pos:end_pos]):
             raise ValueError()
         pos += 5 + block_size_len + sample_rate_len + length
-        return block_size, sample_rate, channels, sample_size, pos, \
-            frame_sample_number
+        return block_size, sample_rate, channels, sample_size, pos, frame_sample_number
 
     def save_picture(self):
-        with open('{0}pic.{1}'.
-                  format(self.filename.split('.')[0],
-                         self.picture[0]['extension']), 'wb') as f:
+        """
+        :return: сохраняет картинку
+        """
+        with open('{0}pic.{1}'.format(self.filename.split('.')[0], self.picture[0]['extension']), 'wb') as f:
             f.write(self.picture[0]['pic'])
 
     def make_text(self):
-        text = constants.text.format(self.streaminfo['block_minsize'],
-                                     self.streaminfo['block_maxsize'],
-                                     self.streaminfo['frame_minsize'],
-                                     self.streaminfo['frame_maxsize'],
-                                     self.streaminfo['rate'],
-                                     self.streaminfo['channels'],
-                                     self.streaminfo['bits per sample'],
-                                     self.streaminfo['samples in flow'])
+        """
+        :return: вся инфа по стриму аудиоданных
+        """
+        text = constants.text.format(self.streaminfo[BLOCK_MINSIZE],
+                                     self.streaminfo[BLOCK_MAXSIZE],
+                                     self.streaminfo[FRAME_MINSIZE],
+                                     self.streaminfo[FRAME_MAXSIZE],
+                                     self.streaminfo[RATE],
+                                     self.streaminfo[CHANNELS],
+                                     self.streaminfo[BITS_PER_SAMPLE],
+                                     self.streaminfo[SAMPLES_IN_FLOW])
         if self.tags:
             tags = '\nVORBIS COMMENT:'
             for tag in self.tags:
@@ -408,8 +478,8 @@ class AudioFile:
         if len(self.picture) > 0:
             pictures = '\nPICTURES:'
             for i in range(0, len(self.picture)):
-                pictures += constants.pic_text.\
-                    format(str(i+1),
+                pictures += constants.pic_text. \
+                    format(str(i + 1),
                            self.picture[i]['picture type'],
                            self.picture[i]['mime type'],
                            self.picture[i]['description'],
@@ -420,27 +490,26 @@ class AudioFile:
             text += pictures
 
         if len(self.cuesheet) > 0:
-            cuesheet_text = \
-                constants.cuesheet_text.format(self.cuesheet
-                                               ['media catalog number'],
+            cuesheet_text = constants.cuesheet_text.format(self.cuesheet
+                                               [MEDIA_CATALOG_NUMBER],
                                                self.cuesheet
-                                               ['lead in samples'],
+                                               [LEAD_IN_SAMPLES],
                                                self.cuesheet
-                                               ['corresponds to cd'])
-            for i in range(0, len(self.cuesheet['tracks'])):
-                track_text = constants.track_text.\
-                    format(self.cuesheet['tracks'][i]['track number'],
-                           self.cuesheet['tracks'][i]['offset'],
-                           self.cuesheet['tracks'][i]['isrc'],
-                           self.cuesheet['tracks'][i]['is audio'],
-                           self.cuesheet['tracks'][i]['pre-emphasis'])
-                for j in range(0, len(self.cuesheet['tracks']
-                                      [i]['track index'])):
-                    track_index_text = '\n{0}. Offset {1}'\
-                        .format(self.cuesheet['tracks'][i]['track index'][j]
-                                             ['index point number'],
-                                self.cuesheet['tracks'][i]['track index'][j]
-                                             ['offset'])
+                                               [CORRESPONDS_TO_CD])
+            for i in range(0, len(self.cuesheet[TRACKS])):
+                track_text = constants.track_text.format(
+                    self.cuesheet[TRACKS][i][TRACK_NUMBER],
+                    self.cuesheet[TRACKS][i][OFFSET],
+                    self.cuesheet[TRACKS][i][ISRC],
+                    self.cuesheet[TRACKS][i][IS_AUDIO],
+                    self.cuesheet[TRACKS][i][PRE_EMPHASIS]
+                )
+                for j in range(0, len(self.cuesheet[TRACKS]
+                                      [i][TRACK_INDEX])):
+                    track_index_text = '\n{0}. Offset {1}'.format(
+                        self.cuesheet[TRACKS][i][TRACK_INDEX][j][INDEX_POINT_NUMBER],
+                        self.cuesheet[TRACKS][i][TRACK_INDEX][j][OFFSET]
+                    )
                     track_text += track_index_text
                 cuesheet_text += track_text
             text += cuesheet_text
@@ -450,15 +519,13 @@ class AudioFile:
         text = ''
         for i in range(0, len(self.frames)):
             text += constants.frames_text.format(i,
-                                                 self.frames[i]['offset'],
-                                                 self.frames[i]['block size'],
-                                                 self.frames[i]['sample rate'],
-                                                 self.frames[i]['channels'],
-                                                 self.frames[i]['sample size'])
+                                                 self.frames[i][OFFSET],
+                                                 self.frames[i][BLOCK_SIZE],
+                                                 self.frames[i][SAMPLE_RATE],
+                                                 self.frames[i][CHANNELS],
+                                                 self.frames[i][SAMPLE_SIZE])
             if self.blocking_strategy:
-                text += \
-                    constants.sample_number_text.format(self.frames[i]
-                                                        ['sample number'])
+                text += constants.sample_number_text.format(self.frames[i][SAMPLE_NUMBER])
             text += '\n\n'
         with open(self.filename.split('.')[0] + ' frames.txt', 'w') as f:
             f.write(text)
